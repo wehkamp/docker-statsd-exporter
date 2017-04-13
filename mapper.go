@@ -27,7 +27,7 @@ var (
 	identifierRE   = `[a-zA-Z_][a-zA-Z0-9_]+`
 	statsdMetricRE = `[a-zA-Z_](-?[a-zA-Z0-9_])+`
 
-	metricLineRE = regexp.MustCompile(`^(\*\.|` + statsdMetricRE + `\.)+(\*|` + statsdMetricRE + `)$`)
+	metricLineRE = regexp.MustCompile(`^(\*\.|` + statsdMetricRE + `\.)+(\*?\*|` + statsdMetricRE + `)$`)
 	labelLineRE  = regexp.MustCompile(`^(` + identifierRE + `)\s*=\s*"(.*)"$`)
 	metricNameRE = regexp.MustCompile(`^` + identifierRE + `$`)
 )
@@ -35,6 +35,7 @@ var (
 type metricMapping struct {
 	regex  *regexp.Regexp
 	labels prometheus.Labels
+	ignore bool;
 }
 
 type metricMapper struct {
@@ -71,6 +72,7 @@ func (m *metricMapper) initFromString(fileContents string) error {
 			// Translate the glob-style metric match line into a proper regex that we
 			// can use to match metrics later on.
 			metricRe := strings.Replace(line, ".", "\\.", -1)
+			metricRe = strings.Replace(metricRe, "**", "(.+)", -1)
 			metricRe = strings.Replace(metricRe, "*", "([^.]+)", -1)
 			currentMapping.regex = regexp.MustCompile("^" + metricRe + "$")
 
@@ -81,11 +83,13 @@ func (m *metricMapper) initFromString(fileContents string) error {
 				return fmt.Errorf("Line %d: missing terminating newline", i)
 			}
 			if line == "" {
-				if len(currentMapping.labels) == 0 {
-					return fmt.Errorf("Line %d: metric mapping didn't set any labels", i)
-				}
-				if _, ok := currentMapping.labels["name"]; !ok {
-					return fmt.Errorf("Line %d: metric mapping didn't set a metric name", i)
+				if !currentMapping.ignore {
+					if len(currentMapping.labels) == 0 {
+						return fmt.Errorf("Line %d: metric mapping didn't set any labels", i)
+					}
+					if _, ok := currentMapping.labels["name"]; !ok {
+						return fmt.Errorf("Line %d: metric mapping didn't set a metric name", i)
+					}
 				}
 				parsedMappings = append(parsedMappings, currentMapping)
 				state = SEARCHING
@@ -122,6 +126,10 @@ func (m *metricMapper) getMapping(statsdMetric string) (labels prometheus.Labels
 	defer m.mutex.Unlock()
 
 	for _, mapping := range m.mappings {
+		if mapping.ignore {
+			continue;
+		}
+
 		matches := mapping.regex.FindStringSubmatchIndex(statsdMetric)
 		if len(matches) == 0 {
 			continue
@@ -146,7 +154,10 @@ func (m *metricMapper) updateMapping(line string, i int, mapping *metricMapping)
 	label, value := matches[1], matches[2]
 	if label == "name" && !metricNameRE.MatchString(value) {
 		return fmt.Errorf("Line %d: metric name '%s' doesn't match regex '%s'", i, value, metricNameRE)
+	} else if label == "ignore" && value == "true" {
+		(*mapping).ignore = true
+        } else {
+		(*mapping).labels[label] = value
 	}
-	(*mapping).labels[label] = value
 	return nil
 }
