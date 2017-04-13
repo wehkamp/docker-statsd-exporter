@@ -88,18 +88,20 @@ with `-statsd.add-suffix=false`.
 
 An example mapping configuration with `-statsd.add-suffix=false`:
 
-    test.dispatcher.*.*.*
+    test\.dispatcher\.([^.]*)\.([^.]*)\.([^.]*)
     name="dispatcher_events_total"
     processor="$1"
     action="$2"
     outcome="$3"
     job="test_dispatcher"
 
-    *.signup.*.*
+    ([^.]*).signup\.([^.]*)\.([^.]*)
     name="signup_events_total"
     provider="$2"
     outcome="$3"
     job="${1}_server"
+
+The first line is a regular expression (this is different from the original, since Consul is producing somewhat more complex metric names)
 
 This would transform these example StatsD metrics into Prometheus metrics as
 follows:
@@ -115,16 +117,16 @@ follows:
 
 ## Using Docker
 
-You can deploy this exporter using the [prom/statsd-exporter](https://registry.hub.docker.com/u/prom/statsd-exporter/) Docker image.
+You can deploy this exporter using the [wehkamp/statsd-exporter](https://registry.hub.docker.com/u/wehkamp/statsd-exporter/) Docker image.
 
 For example:
 
 ```bash
-docker pull prom/statsd-exporter
+docker pull wehkamp/statsd-exporter
 
 docker run -d -p 9102:9102 -p 9125:9125/udp \
         -v $PWD/statsd_mapping.conf:/tmp/statsd_mapping.conf \
-        prom/statsd-exporter -statsd.mapping-config=/tmp/statsd_mapping.conf
+        wehkamp/statsd-exporter -statsd.mapping-config=/tmp/statsd_mapping.conf
 ```
 
 
