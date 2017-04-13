@@ -25,9 +25,7 @@ import (
 
 var (
 	identifierRE   = `[a-zA-Z_][a-zA-Z0-9_]+`
-	statsdMetricRE = `[a-zA-Z_](-?[a-zA-Z0-9_])+`
 
-	metricLineRE = regexp.MustCompile(`^(\*\.|` + statsdMetricRE + `\.)+(\*?\*|` + statsdMetricRE + `)$`)
 	labelLineRE  = regexp.MustCompile(`^(` + identifierRE + `)\s*=\s*"(.*)"$`)
 	metricNameRE = regexp.MustCompile(`^` + identifierRE + `$`)
 )
@@ -65,17 +63,11 @@ func (m *metricMapper) initFromString(fileContents string) error {
 			if line == "" {
 				continue
 			}
-			if !metricLineRE.MatchString(line) {
-				return fmt.Errorf("Line %d: expected metric match line, got: %s", i, line)
+			re, err := regexp.Compile("^" + line + "$")
+			if err != nil {
+				return fmt.Errorf("Line %d: expected regex match line, got: %s on line %s", i, err, line)
 			}
-
-			// Translate the glob-style metric match line into a proper regex that we
-			// can use to match metrics later on.
-			metricRe := strings.Replace(line, ".", "\\.", -1)
-			metricRe = strings.Replace(metricRe, "**", "(.+)", -1)
-			metricRe = strings.Replace(metricRe, "*", "([^.]+)", -1)
-			currentMapping.regex = regexp.MustCompile("^" + metricRe + "$")
-
+			currentMapping.regex = re
 			state = METRIC_DEFINITION
 
 		case METRIC_DEFINITION:
