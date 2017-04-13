@@ -118,13 +118,14 @@ func (m *metricMapper) getMapping(statsdMetric string) (labels prometheus.Labels
 	defer m.mutex.Unlock()
 
 	for _, mapping := range m.mappings {
-		if mapping.ignore {
-			continue;
-		}
 
 		matches := mapping.regex.FindStringSubmatchIndex(statsdMetric)
 		if len(matches) == 0 {
 			continue
+		}
+
+		if mapping.ignore {
+			return nil, true;
 		}
 
 		labels := prometheus.Labels{}

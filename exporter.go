@@ -219,7 +219,10 @@ func (b *Exporter) Listen(e <-chan Events) {
 			prometheusLabels := event.Labels()
 
 			labels, present := b.mapper.getMapping(event.MetricName())
-			if present {
+			if present && labels == nil {
+				// Ignored line
+				continue
+			} else if present {
 				metricName = labels["name"]
 				for label, value := range labels {
 					if label != "name" {
